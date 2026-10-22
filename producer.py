@@ -1,21 +1,14 @@
 import json
+import os
 import random
 import time
 from datetime import datetime
 from faker import Faker
-from kafka import KafkaProducer
 
 fake = Faker("pt_BR")
 
-# Inicializa o produtor Kafka conectado na porta local
-producer = KafkaProducer(
-    bootstrap_servers=["localhost:9092"],
-    value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode(
-        "utf-8"
-    ),
-)
-
-TOPIC_NAME = "vendas-ecommerce"
+# Arquivo de log que faz o papel do tópico Kafka: cada linha é um evento JSON
+ARQUIVO_EVENTOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendas.jsonl")
 
 PRODUTOS = [
     {"nome": "Notebook Gamer", "categoria": "Eletrônicos", "preco": 4500.0},
@@ -28,8 +21,11 @@ PRODUTOS = [
 ]
 
 print(
-    f"🚀 Produtor de eventos iniciado! Enviando dados para o tópico '{TOPIC_NAME}'..."
+    f"🚀 Produtor de eventos iniciado! Enviando dados para '{ARQUIVO_EVENTOS}'..."
 )
+
+# Abre o arquivo em modo append: novos eventos sempre vão para o final
+producer = open(ARQUIVO_EVENTOS, "a", encoding="utf-8")
 
 try:
     while True:
@@ -48,8 +44,10 @@ try:
             "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
-        # Envia o evento para o Kafka
-        producer.send(TOPIC_NAME, value=evento)
+        # Publica o evento como uma linha JSON e força a gravação no disco
+        # para o consumidor enxergar imediatamente
+        producer.write(json.dumps(evento, ensure_ascii=False) + "\n")
+        producer.flush()
         print(
             f"📦 Venda enviada: {evento['cliente']} comprou {evento['produto']} (R$ {evento['valor_total']:.2f})"
         )
